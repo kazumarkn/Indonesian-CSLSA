@@ -1,9 +1,12 @@
-// =========================
-// CONFIGURATION
-// =========================
+// =====================================================
+// Configuration
+// =====================================================
 
-// List of variables you generated as COGs
-const variables = [
+// Your GitHub Pages COG folder
+const COG_BASE_URL = "https://kazumarkn.github.io/Indonesian-CSLSA/cogs/";
+
+// Variables you generated from Python
+const VARIABLES = [
   "suitability_class",
   "mem_temp",
   "mem_precip",
@@ -13,82 +16,96 @@ const variables = [
   "mem_slope"
 ];
 
-// Years from 1950 → 2025 (909 months)
-const years = [];
-for (let y = 1950; y <= 2025; y++) years.push(y);
+// Generate list of YYYY_MM (1950-01 → 2025-09)
+let YEARS = [];
+let startYear = 1950;
+let totalMonths = 100;
+for (let i = 0; i < totalMonths; i++) {
+    let y = startYear + Math.floor(i / 12);
+    let m = 1 + (i % 12);
+    YEARS.push(`${y}_${String(m).padStart(2, '0')}`);
+}
 
-// =========================
-// LEAFLET MAP INIT
-// =========================
-let map = L.map("map").setView([-2, 117], 5); // center of Indonesia
+
+// =====================================================
+// Initialize Map
+// =====================================================
+
+let map = L.map("map").setView([ -2.5, 118 ], 5);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 18,
+    maxZoom: 18,
+    attribution: "&copy; OpenStreetMap"
 }).addTo(map);
+
+
+// =====================================================
+// TIFF Layer handling
+// =====================================================
 
 let currentLayer = null;
 
-// =========================
-// UI POPULATION
-// =========================
-let varSelect = document.getElementById("varSelect");
-let yearSelect = document.getElementById("yearSelect");
+async function loadCOG(variable, dateLabel) {
+    const url = `${COG_BASE_URL}${variable}_${dateLabel}.tif`;
+    console.log("Loading:", url);
 
-// populate variable list
-variables.forEach(v => {
-  let opt = document.createElement("option");
-  opt.value = v;
-  opt.textContent = v;
-  varSelect.appendChild(opt);
-});
+    if (currentLayer) {
+        map.removeLayer(currentLayer);
+    }
 
-// populate years
-years.forEach(y => {
-  let opt = document.createElement("option");
-  opt.value = y;
-  opt.textContent = y;
-  yearSelect.appendChild(opt);
-});
+    try {
+        const tiff = await GeoTIFF.fromUrl(url);
+        const image = await tiff.getImage();
+        const rasters = await image.readRasters();
+        const values = rasters[0];
 
-// =========================
-// FUNCTION: LOAD COG TILE
-// =========================
-function loadCOG() {
+        const [minX, minY, maxX, maxY] = image.getBoundingBox();
 
-  let variable = varSelect.value;
-  let year = parseInt(yearSelect.value);
+        currentLayer = L.imageOverlay(
+            url,
+            [[minY, minX], [maxY, maxX]],
+            { opacity: 0.75 }
+        );
 
-  // Default to JANUARY for now
-  let date_label = `${year}_01`;
+        currentLayer.addTo(map);
 
-  let url = `https://kazumarkn.github.io/Indonesian-CSLSA/cogs/${variable}_${date_label}.tif`;
-
-  console.log("Loading:", url);
-
-  fetch(url)
-    .then(res => res.arrayBuffer())
-    .then(buffer => parseGeoraster(buffer))
-    .then(georaster => {
-
-      if (currentLayer) map.removeLayer(currentLayer);
-
-      currentLayer = new GeoRasterLayer({
-        georaster: georaster,
-        opacity: 0.75,
-        resolution: 256
-      });
-
-      currentLayer.addTo(map);
-      map.fitBounds(currentLayer.getBounds());
-    })
-    .catch(err => console.error("Failed loading COG:", err));
+        console.log("COG loaded successfully.");
+    }
+    catch (err) {
+        console.error("Failed loading:", url);
+        alert("❌ Failed to load COG. Check filename:\n" + url);
+    }
 }
 
-// =========================
-// EVENT LISTENERS
-// =========================
-varSelect.onchange = loadCOG;
-yearSelect.onchange = loadCOG;
 
-// Auto-load defaults
-window.onload = loadCOG;
+// =====================================================
+// Populate UI menus
+// =====================================================
+
+document.addEventListener("DOMContentLoaded", () => {
+    const varSelect = document.getElementById("variableSelect");
+    const yearSelect = document.getElementById("yearSelect");
+
+    VARIABLES.forEach(v => {
+        let opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = v;
+        varSelect.appendChild(opt);
+    });
+
+    YEARS.forEach(t => {
+        let opt = document.createElement("option");
+        opt.value = t;
+        opt.textContent = t;
+        yearSelect.appendChild(opt);
+    });
+
+    // Default load
+    loadCOG(VARIABLES[0], YEARS[0]);
+
+    document.getElementById("loadBtn").addEventListener("click", () => {
+        const v = varSelect.value;
+        const d = yearSelect.value;
+        loadCOG(v, d);
+    });
+});
