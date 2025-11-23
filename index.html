@@ -11,34 +11,91 @@
   <script src="https://unpkg.com/georaster/dist/georaster.browser.min.js"></script>
   <script src="https://unpkg.com/georaster-layer-for-leaflet"></script>
 
+  <!-- GeoTIFF reader (required for COG raster access) -->
+  <script src="https://unpkg.com/geotiff/dist/geotiff.browserify.min.js"></script>
+
   <style>
     body, html { margin: 0; padding: 0; }
     #map { height: 100vh; width: 100vw; }
+
+    /* Control Panel */
     #panel {
       position: absolute;
       top: 10px;
       left: 10px;
       z-index: 9999;
       background: white;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid #cccccc;
+      font-family: Arial, sans-serif;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      width: 220px;
+    }
+
+    #panel strong {
+      font-size: 13px;
+    }
+
+    #panel select,
+    #panel input[type="range"],
+    #panel button {
+      width: 100%;
+      margin-top: 4px;
+      margin-bottom: 12px;
+      padding: 4px;
+    }
+
+    /* Legend */
+    #legend {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      z-index: 9999;
+      background: white;
       padding: 10px;
       border-radius: 6px;
       border: 1px solid #ccc;
-      font-family: Arial;
+      font-size: 12px;
+      font-family: Arial, sans-serif;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      display: none;
     }
   </style>
 </head>
 
 <body>
 
+<!-- PANEL -->
 <div id="panel">
+
   <strong>Variable</strong><br>
-  <select id="varSelect"></select><br><br>
+  <!-- NEW: variableSelect -->
+  <select id="variableSelect"></select>
 
   <strong>Year</strong><br>
+  <!-- Keep yearSelect ID -->
   <select id="yearSelect"></select>
+
+  <!-- NEW: Load button -->
+  <button id="loadBtn">Load Map</button>
+
+  <strong>Opacity</strong>
+  <input id="opacitySlider" type="range" min="0" max="1" step="0.05" value="0.75">
+
+  <strong>Base Map</strong>
+  <select id="basemapSelect">
+    <option value="osm">OpenStreetMap</option>
+    <option value="sat">Satellite</option>
+    <option value="terrain">Terrain</option>
+  </select>
 </div>
 
+<!-- MAP -->
 <div id="map"></div>
+
+<!-- LEGEND -->
+<div id="legend"></div>
 
 <!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
