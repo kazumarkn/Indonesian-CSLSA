@@ -1,94 +1,87 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8" />
-    <title>Climate-Smart Land Suitability – Indonesia</title>
+<meta charset="utf-8">
+<title>Indonesian CSLSA Map</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- Leaflet CDN -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-    <style>
-        body, html {
-            height: 100%;
-            margin: 0;
-        }
-        #map {
-            width: 100%;
-            height: 100%;
-        }
-
-        #layerSelector {
-            position: absolute;
-            top: 10px;
-            left: 50px;
-            z-index: 1000;
-            background: white;
-            padding: 8px;
-            border-radius: 5px;
-            font-size: 14px;
-            box-shadow: 0 0 5px rgba(0,0,0,0.3);
-        }
-    </style>
+<style>
+    body, html {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+    }
+    #map {
+        width: 100%;
+        height: 100%;
+    }
+    .leaflet-container {
+        background: #e6e6e6;
+    }
+</style>
 </head>
 
 <body>
+<div id="map"></div>
 
-    <!-- Dropdown for selecting a variable -->
-    <div id="layerSelector">
-        <strong>Variable:</strong>
-        <select id="varSelect">
-           <option value="suitability_index">Suitability Index</option>
-            <option value="suitability_class">Suitability Class</option>
-            <option value="mem_temp">MEM Temp</option>
-            <option value="mem_precip">MEM Precip</option>
-            <option value="mem_soilN">MEM SoilN</option>
-            <option value="mem_sw">MEM Soil Water</option>
-            <option value="mem_elev">MEM Elevation</option>
-            <option value="mem_slope">MEM Slope</option>
-        </select>
-    </div>
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <div id="map"></div>
+<script>
 
-    <script>
-        // Initial map center (Indonesia)
-        var map = L.map('map').setView([-2, 118], 5);
+// -----------------------------
+// Initialize Map
+// -----------------------------
+var map = L.map('map', {
+    center: [-2, 118],  // Center of Indonesia
+    zoom: 4,
+    minZoom: 0,
+    maxZoom: 5,
+    zoomControl: true
+});
 
-        // Add basemap
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
+// Basemap
+var baseLayer = L.tileLayer(
+    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    { attribution: "© OpenStreetMap", maxZoom: 19 }
+).addTo(map);
 
-        // Function to create a tile layer for a given variable
-        function createTileLayer(variable) {
-            return L.tileLayer(
-                `https://kazumarkn.github.io/Indonesian-CSLSA/cogs/${variable}/{z}/{x}/{y}.png`,
-                {
-                    minZoom: 0,
-                    maxZoom: 8,
-                    tms: false,
-                    opacity: 0.85
-                }
-            );
-        }
+// -----------------------------
+// Custom Tile Layers (your tiles)
+// -----------------------------
 
-        // Initial variable
-        var currentVar = "suitability_class";
-        var currentLayer = createTileLayer(currentVar).addTo(map);
+function makeLayer(name) {
+    return L.tileLayer('tiles/' + name + '/{z}/{x}/{y}.png', {
+        minZoom: 0,
+        maxZoom: 5,
+        attribution: 'Arabica CSLSA'
+    });
+}
 
-        // Handle dropdown selection
-        document.getElementById("varSelect").addEventListener("change", function() {
-            var newVar = this.value;
+var layers = {
+    "Suitability Index": makeLayer("suitability_index"),
+    "Suitability Class": makeLayer("suitability_class"),
+    "MEM Temperature": makeLayer("mem_temp"),
+    "MEM Precipitation": makeLayer("mem_precip"),
+    "MEM Soil N": makeLayer("mem_soilN"),
+    "MEM Soil Water": makeLayer("mem_sw"),
+    "MEM Elevation": makeLayer("mem_elev"),
+    "MEM Slope": makeLayer("mem_slope")
+};
 
-            // Remove old layer
-            map.removeLayer(currentLayer);
+// Add first layer by default
+layers["Suitability Index"].addTo(map);
 
-            // Add new layer
-            currentLayer = createTileLayer(newVar);
-            map.addLayer(currentLayer);
-        });
-    </script>
+// Layer control
+L.control.layers({"OpenStreetMap": baseLayer}, layers, {
+    collapsed: false,
+    position: "topright"
+}).addTo(map);
 
+</script>
 </body>
 </html>
