@@ -1,107 +1,94 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>Indonesian Coffee Suitability Map</title>
+    <meta charset="utf-8" />
+    <title>Climate-Smart Land Suitability – Indonesia</title>
 
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"/>
+    <!-- Leaflet CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 
-  <!-- Georaster + COG Support -->
-  <script src="https://unpkg.com/georaster/dist/georaster.browser.min.js"></script>
-  <script src="https://unpkg.com/georaster-layer-for-leaflet"></script>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
 
-  <!-- GeoTIFF reader (required for COG raster access) -->
-  <script src="https://unpkg.com/geotiff/dist/geotiff.browserify.min.js"></script>
-
-  <style>
-    body, html { margin: 0; padding: 0; }
-    #map { height: 100vh; width: 100vw; }
-
-    /* Control Panel */
-    #panel {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 9999;
-      background: white;
-      padding: 12px 14px;
-      border-radius: 8px;
-      border: 1px solid #cccccc;
-      font-family: Arial, sans-serif;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-      width: 220px;
-    }
-
-    #panel strong {
-      font-size: 13px;
-    }
-
-    #panel select,
-    #panel input[type="range"],
-    #panel button {
-      width: 100%;
-      margin-top: 4px;
-      margin-bottom: 12px;
-      padding: 4px;
-    }
-
-    /* Legend */
-    #legend {
-      position: absolute;
-      bottom: 20px;
-      left: 20px;
-      z-index: 9999;
-      background: white;
-      padding: 10px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-      font-size: 12px;
-      font-family: Arial, sans-serif;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-      display: none;
-    }
-  </style>
+        #layerSelector {
+            position: absolute;
+            top: 10px;
+            left: 50px;
+            z-index: 1000;
+            background: white;
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 14px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.3);
+        }
+    </style>
 </head>
 
 <body>
 
-<!-- PANEL -->
-<div id="panel">
+    <!-- Dropdown for selecting a variable -->
+    <div id="layerSelector">
+        <strong>Variable:</strong>
+        <select id="varSelect">
+           <option value="suitability_index">Suitability Index</option>
+            <option value="suitability_class">Suitability Class</option>
+            <option value="mem_temp">MEM Temp</option>
+            <option value="mem_precip">MEM Precip</option>
+            <option value="mem_soilN">MEM SoilN</option>
+            <option value="mem_sw">MEM Soil Water</option>
+            <option value="mem_elev">MEM Elevation</option>
+            <option value="mem_slope">MEM Slope</option>
+        </select>
+    </div>
 
-  <strong>Variable</strong><br>
-  <!-- NEW: variableSelect -->
-  <select id="variableSelect"></select>
+    <div id="map"></div>
 
-  <strong>Year</strong><br>
-  <!-- Keep yearSelect ID -->
-  <select id="yearSelect"></select>
+    <script>
+        // Initial map center (Indonesia)
+        var map = L.map('map').setView([-2, 118], 5);
 
-  <!-- NEW: Load button -->
-  <button id="loadBtn">Load Map</button>
+        // Add basemap
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
 
-  <strong>Opacity</strong>
-  <input id="opacitySlider" type="range" min="0" max="1" step="0.05" value="0.75">
+        // Function to create a tile layer for a given variable
+        function createTileLayer(variable) {
+            return L.tileLayer(
+                `https://kazumarkn.github.io/Indonesian-CSLSA/cogs/${variable}/{z}/{x}/{y}.png`,
+                {
+                    minZoom: 0,
+                    maxZoom: 8,
+                    tms: false,
+                    opacity: 0.85
+                }
+            );
+        }
 
-  <strong>Base Map</strong>
-  <select id="basemapSelect">
-    <option value="osm">OpenStreetMap</option>
-    <option value="sat">Satellite</option>
-    <option value="terrain">Terrain</option>
-  </select>
-</div>
+        // Initial variable
+        var currentVar = "suitability_class";
+        var currentLayer = createTileLayer(currentVar).addTo(map);
 
-<!-- MAP -->
-<div id="map"></div>
+        // Handle dropdown selection
+        document.getElementById("varSelect").addEventListener("change", function() {
+            var newVar = this.value;
 
-<!-- LEGEND -->
-<div id="legend"></div>
+            // Remove old layer
+            map.removeLayer(currentLayer);
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-
-<!-- Your JS -->
-<script src="map.js"></script>
+            // Add new layer
+            currentLayer = createTileLayer(newVar);
+            map.addLayer(currentLayer);
+        });
+    </script>
 
 </body>
 </html>
