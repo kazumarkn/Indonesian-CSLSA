@@ -1,87 +1,157 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8">
-<title>Indonesian CSLSA Map</title>
+<meta charset="utf-8" />
+<title>Indonesian CSLSA Viewer</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
 <style>
-    body, html {
-        margin: 0;
-        padding: 0;
-        height: 100%;
-        width: 100%;
-    }
-    #map {
-        width: 100%;
-        height: 100%;
-    }
-    .leaflet-container {
-        background: #e6e6e6;
-    }
+body, html { margin:0; padding:0; height:100%; }
+#map { width:100%; height:100%; }
+#panel {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: white;
+    padding: 12px;
+    z-index: 1000;
+    border-radius: 6px;
+    box-shadow: 0 0 5px rgba(0,0,0,0.3);
+}
+#errorBox {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background: #ffcccc;
+    padding: 8px;
+    display: none;
+    border: 1px solid #cc0000;
+    z-index: 2000;
+}
 </style>
 </head>
 
 <body>
-<div id="map"></div>
 
-<!-- Leaflet JS -->
+<div id="panel">
+    <b>Variable:</b><br>
+    <select id="variable">
+        <option value="suitability_index">Suitability Index</option>
+        <option value="suitability_class">Suitability Class</option>
+        <option value="mem_temp">MEM Temp</option>
+        <option value="mem_precip">MEM Precip</option>
+        <option value="mem_soilN">MEM SoilN</option>
+        <option value="mem_sw">MEM Soil Water</option>
+        <option value="mem_elev">MEM Elevation</option>
+        <option value="mem_slope">MEM Slope</option>
+    </select>
+    <br><br>
+
+    <b>Year:</b><br>
+    <select id="year">
+        <!-- 1950–2025 for now; adjust as needed -->
+        <script>
+            for (let y = 1950; y <= 2025; y++) {
+                document.write(`<option value="${y}">${y}</option>`);
+            }
+        </script>
+    </select><br><br>
+
+    <b>Month:</b><br>
+    <select id="month">
+        <script>
+            for (let m = 1; m <= 12; m++) {
+                document.write(`<option value="${m.toString().padStart(2,'0')}">${m}</option>`);
+            }
+        </script>
+    </select><br><br>
+
+    <button onclick="loadTiles()">Load</button>
+</div>
+
+<div id="map"></div>
+<div id="errorBox"></div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
 
-// -----------------------------
-// Initialize Map
-// -----------------------------
+// -------------------------
+// MAP INITIALIZATION
+// -------------------------
+
 var map = L.map('map', {
-    center: [-2, 118],  // Center of Indonesia
+    center: [-3, 119],
     zoom: 4,
     minZoom: 0,
-    maxZoom: 5,
-    zoomControl: true
+    maxZoom: 5
 });
 
-// Basemap
-var baseLayer = L.tileLayer(
-    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    { attribution: "© OpenStreetMap", maxZoom: 19 }
-).addTo(map);
-
-// -----------------------------
-// Custom Tile Layers (your tiles)
-// -----------------------------
-
-function makeLayer(name) {
-    return L.tileLayer('tiles/' + name + '/{z}/{x}/{y}.png', {
-        minZoom: 0,
-        maxZoom: 5,
-        attribution: 'Arabica CSLSA'
-    });
-}
-
-var layers = {
-    "Suitability Index": makeLayer("suitability_index"),
-    "Suitability Class": makeLayer("suitability_class"),
-    "MEM Temperature": makeLayer("mem_temp"),
-    "MEM Precipitation": makeLayer("mem_precip"),
-    "MEM Soil N": makeLayer("mem_soilN"),
-    "MEM Soil Water": makeLayer("mem_sw"),
-    "MEM Elevation": makeLayer("mem_elev"),
-    "MEM Slope": makeLayer("mem_slope")
-};
-
-// Add first layer by default
-layers["Suitability Index"].addTo(map);
-
-// Layer control
-L.control.layers({"OpenStreetMap": baseLayer}, layers, {
-    collapsed: false,
-    position: "topright"
+// basemap 1 — OpenStreetMap
+var osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "OSM"
 }).addTo(map);
 
+// basemap 2 — Satellite (ESRI)
+var satellite = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{x}/{y}",
+    { maxZoom: 19, attribution: "Esri" }
+);
+
+// layer group for your PNG tiles
+var activeLayer = null;
+
+// -------------------------
+// TILE LOADER
+// (Supports your "x_y.png" naming)
+// -------------------------
+
+function loadTiles() {
+
+    let variable = document.getElementById("variable").value;
+    let year = document.getElementById("year").value;
+    let month = document.getElementById("month").value;
+
+    // Example: tiles/suitability_index/1950_01/{z}/{x}_{y}.png
+    let urlTemplate = `tiles/${variable}/${year}_${month}/{z}/{x}_{y}.png`;
+
+    console.log("Loading:", urlTemplate);
+
+    // remove previous layer
+    if (activeLayer) {
+        map.removeLayer(activeLayer);
+    }
+
+    activeLayer = L.tileLayer(urlTemplate, {
+        minZoom: 0,
+        maxZoom: 5,
+        errorTileUrl: "",  // allow custom error display
+    }).addTo(map);
+
+    // Error handling
+    activeLayer.on("tileerror", function(e) {
+        let box = document.getElementById("errorBox");
+        box.style.display = "block";
+        box.innerHTML = "⚠ ERROR: Tile not found:<br>" + e.tile.src;
+        console.error("Tile missing:", e.tile.src);
+    });
+
+    // Clear previous error
+    document.getElementById("errorBox").style.display = "none";
+}
+
+// -------------------------
+// Layer Control
+// -------------------------
+L.control.layers(
+    { "OpenStreetMap": osm, "Satellite": satellite },
+    {}
+).addTo(map);
+
 </script>
+
 </body>
 </html>
