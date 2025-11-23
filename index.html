@@ -12,8 +12,7 @@ body, html { margin:0; padding:0; height:100%; }
 #map { width:100%; height:100%; }
 #panel {
     position: absolute;
-    top: 10px;
-    left: 10px;
+    top: 10px; left: 10px;
     background: white;
     padding: 12px;
     z-index: 1000;
@@ -49,26 +48,7 @@ body, html { margin:0; padding:0; height:100%; }
     </select>
     <br><br>
 
-    <b>Year:</b><br>
-    <select id="year">
-        <!-- 1950–2025 for now; adjust as needed -->
-        <script>
-            for (let y = 1950; y <= 2025; y++) {
-                document.write(`<option value="${y}">${y}</option>`);
-            }
-        </script>
-    </select><br><br>
-
-    <b>Month:</b><br>
-    <select id="month">
-        <script>
-            for (let m = 1; m <= 12; m++) {
-                document.write(`<option value="${m.toString().padStart(2,'0')}">${m}</option>`);
-            }
-        </script>
-    </select><br><br>
-
-    <button onclick="loadTiles()">Load</button>
+    <button onclick="loadTiles()">Load Layer</button>
 </div>
 
 <div id="map"></div>
@@ -78,74 +58,42 @@ body, html { margin:0; padding:0; height:100%; }
 
 <script>
 
-// -------------------------
-// MAP INITIALIZATION
-// -------------------------
+var map = L.map('map', { center: [-3, 119], zoom: 4, minZoom: 0, maxZoom: 5 });
 
-var map = L.map('map', {
-    center: [-3, 119],
-    zoom: 4,
-    minZoom: 0,
-    maxZoom: 5
-});
+var osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
 
-// basemap 1 — OpenStreetMap
-var osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "OSM"
-}).addTo(map);
-
-// basemap 2 — Satellite (ESRI)
 var satellite = L.tileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{x}/{y}",
-    { maxZoom: 19, attribution: "Esri" }
+    { maxZoom: 19 }
 );
 
-// layer group for your PNG tiles
 var activeLayer = null;
 
-// -------------------------
-// TILE LOADER
-// (Supports your "x_y.png" naming)
-// -------------------------
-
 function loadTiles() {
-
     let variable = document.getElementById("variable").value;
-    let year = document.getElementById("year").value;
-    let month = document.getElementById("month").value;
 
-    // Example: tiles/suitability_index/1950_01/{z}/{x}_{y}.png
-    let urlTemplate = `tiles/${variable}/${year}_${month}/{z}/{x}_{y}.png`;
+    // <<=== FIXED HERE
+    let urlTemplate = `tiles/${variable}/{z}/{x}_{y}.png`;
 
     console.log("Loading:", urlTemplate);
 
-    // remove previous layer
-    if (activeLayer) {
-        map.removeLayer(activeLayer);
-    }
+    if (activeLayer) map.removeLayer(activeLayer);
 
     activeLayer = L.tileLayer(urlTemplate, {
         minZoom: 0,
-        maxZoom: 5,
-        errorTileUrl: "",  // allow custom error display
+        maxZoom: 5
     }).addTo(map);
 
-    // Error handling
     activeLayer.on("tileerror", function(e) {
         let box = document.getElementById("errorBox");
         box.style.display = "block";
         box.innerHTML = "⚠ ERROR: Tile not found:<br>" + e.tile.src;
-        console.error("Tile missing:", e.tile.src);
+        console.error("Missing tile:", e.tile.src);
     });
 
-    // Clear previous error
     document.getElementById("errorBox").style.display = "none";
 }
 
-// -------------------------
-// Layer Control
-// -------------------------
 L.control.layers(
     { "OpenStreetMap": osm, "Satellite": satellite },
     {}
