@@ -1,203 +1,200 @@
-/********************************************************************
- *  CONFIG: 4 PART FILES (GitHub Pages – CORS SAFE)
- ********************************************************************/
+// ----------------------------
+//  CONFIG: FILE LIST
+// ----------------------------
 const ncFiles = [
-    { start: 1950, end: 1968, url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part1.nc" },
-    { start: 1969, end: 1987, url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part2.nc" },
-    { start: 1988, end: 2006, url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part3.nc" },
-    { start: 2007, end: 2025, url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part4.nc" }
+    {
+        start: 1950,
+        end: 1968,
+        url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part1.nc"
+    },
+    {
+        start: 1969,
+        end: 1987,
+        url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part2.nc"
+    },
+    {
+        start: 1988,
+        end: 2006,
+        url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part3.nc"
+    },
+    {
+        start: 2007,
+        end: 2025,
+        url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part4.nc"
+    }
 ];
 
-const availableVariables = [
-    "suitability_index",
-    "suitability_class"
-];
-
-/********************************************************************
- *  LEAFLET MAP
- ********************************************************************/
-let map = L.map("map").setView([-2, 118], 5); // Indonesia center
+// ----------------------------
+//  LEAFLET MAP INITIALIZATION
+// ----------------------------
+const map = L.map("map").setView([-2, 118], 5);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 13
+    maxZoom: 18
 }).addTo(map);
 
 let rasterLayer = null;
 
-/********************************************************************
- *  HELPERS
- ********************************************************************/
-function pickFileForYear(year) {
-    return ncFiles.find(f => year >= f.start && year <= f.end);
+// ----------------------------
+//  HELPER FUNCTIONS
+// ----------------------------
+function getFileForYear(year) {
+    return ncFiles.find(f => year >= f.start && year <= f.end).url;
 }
 
-/********************************************************************
- *  LOAD NETCDF FILE
- ********************************************************************/
 async function loadNetCDF(url) {
+    console.log("Loading:", url);
+
     const response = await fetch(url);
-    if (!response.ok) throw new Error("Failed to load NetCDF");
     const arrayBuffer = await response.arrayBuffer();
+
     return new NetCDFReader(arrayBuffer);
 }
 
-/********************************************************************
- *  PARSE DATE INDEX
- ********************************************************************/
-function parseDates(validTimeVar) {
-    let dates = [];
-    for (let i = 0; i < validTimeVar.length; i++) {
-        dates.push(new Date(validTimeVar[i]));  // Already datetime
-    }
-    return dates;
+function extractYearMonthIndices(reader, year, month) {
+    const timeVar = reader.variables.find(v => v.name === "valid_time");
+    const times = reader.getDataVariable("valid_time");
+
+    const dates = times.map(t => new Date(t));
+
+    const index = dates.findIndex(d =>
+        d.getUTCFullYear() === year && d.getUTCMonth() + 1 === month
+    );
+
+    if (index === -1) return null;
+
+    return index;
 }
 
-/********************************************************************
- *  RENDER RASTER TO CANVAS
- ********************************************************************/
-function drawRaster(lat, lon, data2D) {
+function createRaster(reader, variable, tIndex) {
+    const lat = reader.getDataVariable("latitude");
+    const lon = reader.getDataVariable("longitude");
+
+    const raw = reader.getDataVariable(variable);
+
+    const height = lat.length;
+    const width = lon.length;
+
+    // raw is [time, lat, lon]
+    const slice = raw.slice(
+        tIndex * width * height,
+        (tIndex + 1) * width * height
+    );
+
+    const grid = [];
+    for (let i = 0; i < height; i++) {
+        grid.push(slice.slice(i * width, (i + 1) * width));
+    }
+
+    return {
+        lat,
+        lon,
+        grid
+    };
+}
+
+function drawRaster(data) {
     if (rasterLayer) {
         map.removeLayer(rasterLayer);
-        rasterLayer = null;
     }
 
-    const latMin = Math.min(...lat);
-    const latMax = Math.max(...lat);
-    const lonMin = Math.min(...lon);
-    const lonMax = Math.max(...lon);
+    rasterLayer = L.imageOverlay.canvas(
+        [[Math.min(...data.lat), Math.min(...data.lon)],
+         [Math.max(...data.lat), Math.max(...data.lon)]],
+        function(canvas) {
+            const ctx = canvas.getContext("2d");
 
-    const bounds = [[latMin, lonMin], [latMax, lonMax]];
+            const h = data.grid.length;
+            const w = data.grid[0].length;
 
-    rasterLayer = L.imageOverlay.canvas(bounds, {
-        opacity: 0.85
-    });
+            canvas.width = w;
+            canvas.height = h;
 
-    rasterLayer.onAdd = function () {
-        const canvas = this._image;
-        const ctx = canvas.getContext("2d");
+            const img = ctx.createImageData(w, h);
+            let k = 0;
 
-        const rows = data2D.length;
-        const cols = data2D[0].length;
+            for (let i = 0; i < h; i++) {
+                for (let j = 0; j < w; j++) {
+                    const value = data.grid[i][j];
+                    const color = valueToColor(value);
 
-        canvas.width = cols;
-        canvas.height = rows;
-
-        const imgData = ctx.createImageData(cols, rows);
-
-        for (let y = 0; y < rows; y++) {
-            for (let x = 0; x < cols; x++) {
-                const value = data2D[y][x];
-
-                let r = 0, g = 0, b = 0;
-
-                if (!isNaN(value)) {
-                    if (value < 0.3) { r = 0; g = 0; b = 200; }
-                    else if (value < 0.6) { r = 0; g = 200; b = 0; }
-                    else { r = 200; g = 0; b = 0; }
+                    img.data[k++] = color.r;
+                    img.data[k++] = color.g;
+                    img.data[k++] = color.b;
+                    img.data[k++] = 200; // alpha
                 }
-
-                let i = (y * cols + x) * 4;
-                imgData.data[i] = r;
-                imgData.data[i + 1] = g;
-                imgData.data[i + 2] = b;
-                imgData.data[i + 3] = 255;
             }
-        }
 
-        ctx.putImageData(imgData, 0, 0);
-    };
+            ctx.putImageData(img, 0, 0);
+        }
+    );
 
     rasterLayer.addTo(map);
-    map.fitBounds(bounds);
 }
 
-/********************************************************************
- *  UPDATE MAP WHEN USER CHANGES SETTINGS
- ********************************************************************/
+function valueToColor(v) {
+    if (v === null || isNaN(v)) return { r: 0, g: 0, b: 0 };
+
+    const c = Math.max(0, Math.min(255, Math.floor(v * 25)));
+
+    return { r: c, g: 255 - c, b: 100 };
+}
+
+// ----------------------------
+//  MAIN UPDATE FUNCTION
+// ----------------------------
 async function updateMap() {
     const variable = document.getElementById("variableSelect").value;
     const year = parseInt(document.getElementById("yearSelect").value);
     const month = parseInt(document.getElementById("monthSelect").value);
 
-    const file = pickFileForYear(year);
-    if (!file) {
-        console.error("Year not in dataset.");
+    const url = getFileForYear(year);
+    const reader = await loadNetCDF(url);
+
+    const tIndex = extractYearMonthIndices(reader, year, month);
+    if (tIndex === null) {
+        console.error("No matching date inside this file.");
         return;
     }
 
-    console.log("Loading:", file.url);
+    const raster = createRaster(reader, variable, tIndex);
 
-    const nc = await loadNetCDF(file.url);
-
-    const lat = nc.getDataVariable("latitude");
-    const lon = nc.getDataVariable("longitude");
-    const vt = nc.getDataVariable("valid_time");
-
-    const dates = parseDates(vt);
-
-    let index = dates.findIndex(d => d.getUTCFullYear() === year && (d.getUTCMonth() + 1) === month);
-    if (index === -1) {
-        console.error("Date not found in NetCDF");
-        return;
-    }
-
-    const raw = nc.getDataVariable(variable);
-    let slice = [];
-
-    for (let i = 0; i < lat.length; i++) {
-        let row = [];
-        for (let j = 0; j < lon.length; j++) {
-            row.push(raw[index][i][j]);
-        }
-        slice.push(row);
-    }
-
-    drawRaster(lat, lon, slice);
+    drawRaster(raster);
 }
 
-/********************************************************************
- *  INITIALIZE UI
- ********************************************************************/
-async function initialize() {
-    // Fill variable dropdown
-    const varSel = document.getElementById("variableSelect");
-    availableVariables.forEach(v => {
-        let opt = document.createElement("option");
-        opt.value = v;
-        opt.textContent = v;
-        varSel.appendChild(opt);
-    });
+// ----------------------------
+//  POPULATE DROPDOWNS
+// ----------------------------
+document.getElementById("variableSelect").innerHTML = `
+    <option value="suitability_index">suitability_index</option>
+    <option value="suitability_class">suitability_class</option>
+`;
 
-    // Extract year range from part files
-    let allYears = [];
-    ncFiles.forEach(f => {
-        for (let y = f.start; y <= f.end; y++) allYears.push(y);
-    });
+function populateYears() {
+    let html = "";
+    for (let y = 1950; y <= 2025; y++) {
+        html += `<option value="${y}">${y}</option>`;
+    }
+    document.getElementById("yearSelect").innerHTML = html;
+}
 
-    const yearSel = document.getElementById("yearSelect");
-    allYears.forEach(y => {
-        let opt = document.createElement("option");
-        opt.value = y;
-        opt.textContent = y;
-        yearSel.appendChild(opt);
-    });
-
-    // Month dropdown
-    const monthSel = document.getElementById("monthSelect");
+function populateMonths() {
+    let html = "";
     for (let m = 1; m <= 12; m++) {
-        let opt = document.createElement("option");
-        opt.value = m;
-        opt.textContent = m;
-        monthSel.appendChild(opt);
+        html += `<option value="${m}">${m}</option>`;
     }
-
-    // Attach change events
-    varSel.onchange = updateMap;
-    yearSel.onchange = updateMap;
-    monthSel.onchange = updateMap;
-
-    // Load initial
-    updateMap();
+    document.getElementById("monthSelect").innerHTML = html;
 }
 
-initialize();
+populateYears();
+populateMonths();
+
+// ----------------------------
+//  EVENT LISTENERS
+// ----------------------------
+document.getElementById("variableSelect").onchange = updateMap;
+document.getElementById("yearSelect").onchange = updateMap;
+document.getElementById("monthSelect").onchange = updateMap;
+
+// Initial draw
+updateMap();
