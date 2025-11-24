@@ -1,40 +1,52 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8" />
-    <title>Arabica Suitability Map</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
+    <title>NC Viewer Indonesia</title>
 
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
     <style>
-        body, html {
-            margin: 0;
-            height: 100%;
-            width: 100%;
+        body { margin: 0; padding: 0; }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
         #map {
-            width: 100%;
-            height: 100%;
+            width: 100vw;
+            height: 100vh;
         }
     </style>
 </head>
 
 <body>
+
+    <!-- CONTROL PANEL -->
+    <div id="controls">
+        <label>Variable: </label>
+        <select id="variableSelect"></select>
+
+        <label>Year: </label>
+        <select id="yearSelect"></select>
+
+        <label>Month: </label>
+        <select id="monthSelect"></select>
+    </div>
+
+    <!-- MAP CONTAINER -->
     <div id="map"></div>
 
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/netcdfjs@1.3.1/dist/netcdfjs.min.js"></script>
 
-    <!-- geotiff.js + georaster -->
-    <script src="https://unpkg.com/geotiff/dist-browser/geotiff.js"></script>
-    <script src="https://unpkg.com/georaster/dist/georaster.browser.bundle.min.js"></script>
-
-    <!-- Leaflet-Georaster -->
-    <script src="https://unpkg.com/leaflet-georaster"></script>
-
-    <!-- Your map script -->
     <script src="map.js"></script>
+
 </body>
 </html>
