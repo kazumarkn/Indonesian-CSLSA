@@ -2,7 +2,7 @@
 // CONFIG
 // -----------------------------------------------------------
 const COG_BASE_URL =
-  "https://hf-mirror.com/datasets/rkazuma/CSLSA/resolve/main/cogs/"; 
+  "https://github.com/kazumarkn/Indonesian-CSLSA/releases/download/v1/"; 
 
 const variables = ["suitability_index"];
 const years = Array.from({ length: 71 }, (_, i) => 1950 + i);
