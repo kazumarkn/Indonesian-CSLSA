@@ -38,7 +38,7 @@ async function loadNetCDF(url) {
     const response = await fetch(url);
     if (!response.ok) throw new Error("Failed to load NetCDF");
     const arrayBuffer = await response.arrayBuffer();
-    return new netcdfjs.NetCDF(arrayBuffer);
+    return new NetCDFReader(arrayBuffer);
 }
 
 /********************************************************************
