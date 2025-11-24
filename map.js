@@ -10,7 +10,7 @@
 // -----------------------------
 // CONFIG
 // -----------------------------
-const COG_BASE_URL = "https://huggingface.co/datasets/rkazuma/CSLSA/tree/main/cogs/"; // <- change if needed https://raw.githubusercontent.com/kazumarkn/Indonesian-CSLSA/main/cogs/ or https://kazumarkn.github.io/Indonesian-CSLSA/cogs/
+const COG_BASE_URL = "https://huggingface.co/datasets/rkazuma/CSLSA/resolve/main/cogs/"; // <- change if needed https://raw.githubusercontent.com/kazumarkn/Indonesian-CSLSA/main/cogs/ or https://kazumarkn.github.io/Indonesian-CSLSA/cogs/
 
 
 const VARIABLES = [
