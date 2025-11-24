@@ -2,7 +2,7 @@
 // CONFIG
 // -----------------------------------------------------------
 const COG_BASE_URL =
-  "https://huggingface.co/datasets/rkazuma/CSLSA/resolve/main/cogs/"; 
+  "https://hf-mirror.com/datasets/rkazuma/CSLSA/resolve/main/cogs/"; 
 
 const variables = ["suitability_index"];
 const years = Array.from({ length: 71 }, (_, i) => 1950 + i);
