@@ -1,52 +1,40 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>Climate Suitability Map Viewer</title>
+    <meta charset="utf-8" />
+    <title>Arabica Suitability Map</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"/>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-  <style>
-    body, html { margin: 0; padding: 0; }
-    #map { height: 100vh; width: 100vw; }
-
-    #panel {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: white;
-      padding: 12px;
-      z-index: 1000;
-      border-radius: 6px;
-      box-shadow: 0 0 5px rgba(0,0,0,0.3);
-      font-family: Arial;
-    }
-
-    select { width: 180px; margin-bottom: 8px; }
-  </style>
+    <style>
+        body, html {
+            margin: 0;
+            height: 100%;
+            width: 100%;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
 </head>
 
 <body>
+    <div id="map"></div>
 
-<div id="panel">
-  <strong>Variable</strong><br>
-  <select id="varSelect"></select><br>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <strong>Year</strong><br>
-  <select id="yearSelect"></select><br>
+    <!-- geotiff.js + georaster -->
+    <script src="https://unpkg.com/geotiff/dist-browser/geotiff.js"></script>
+    <script src="https://unpkg.com/georaster/dist/georaster.browser.bundle.min.js"></script>
 
-  <strong>Month</strong><br>
-  <select id="monthSelect"></select>
-</div>
+    <!-- Leaflet-Georaster -->
+    <script src="https://unpkg.com/leaflet-georaster"></script>
 
-<div id="map"></div>
-
-<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/netcdfjs@1.4.0/dist/netcdfjs.min.js"></script>
-<script src="https://unpkg.com/georaster"></script>
-<script src="https://unpkg.com/georaster-layer-for-leaflet"></script>
-
-<script src="map.js"></script>
-
+    <!-- Your map script -->
+    <script src="map.js"></script>
 </body>
 </html>
