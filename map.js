@@ -1,198 +1,202 @@
-// ------------------------------------------------------------
-// Load netcdfjs
-// ------------------------------------------------------------
-import * as netcdfjs from "https://cdn.jsdelivr.net/npm/netcdfjs@1.3.1/dist/netcdfjs.esm.js";
+// -----------------------------
+// CONFIG
+// -----------------------------
+// Set this to where your .tif files are hosted.
+// Recommended (production): GitHub Releases base URL
+// e.g. "https://github.com/<user>/<repo>/releases/download/v1/"
+//
+// For quick trial you can use GitHub Pages if files are small:
+// e.g. "https://kazumarkn.github.io/Indonesian-CSLSA/cogs/"
+const COG_BASE_URL = "https://kazumarkn.github.io/Indonesian-CSLSA/cogs/";
 
-// ------------------------------------------------------------
-// NetCDF file list (your 4 files)
-// ------------------------------------------------------------
-const FILES = [
-  {
-    name: "1950–1968",
-    url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part1.nc",
-    start: 1950,
-    end: 1968
-  },
-  {
-    name: "1969–1987",
-    url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part2.nc",
-    start: 1969,
-    end: 1987
-  },
-  {
-    name: "1988–2006",
-    url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part3.nc",
-    start: 1988,
-    end: 2006
-  },
-  {
-    name: "2007–2025",
-    url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part4.nc",
-    start: 2007,
-    end: 2025
-  }
-];
+// variable list (must match your COG filenames prefix)
+const VARIABLES = ["suitability_index", "suitability_class"];
 
-// ------------------------------------------------------------
-// Leaflet map
-// ------------------------------------------------------------
-const map = L.map("map").setView([-2, 118], 5);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+// time range info
+const START_YEAR = 1950;
+const TOTAL_MONTHS = 909; // keep correct total months if needed
 
-let rasterLayer = null;
-
-// ------------------------------------------------------------
-// UI elements
-// ------------------------------------------------------------
-const varSel = document.getElementById("variableSelect");
-const yearSel = document.getElementById("yearSelect");
-const monthSel = document.getElementById("monthSelect");
-
-// ------------------------------------------------------------
-// Load and parse NetCDF file
-// ------------------------------------------------------------
-async function loadNetCDF(url) {
-  console.log("Loading NC:", url);
-
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Failed to fetch " + url);
-
-  const buf = await res.arrayBuffer();
-  return new netcdfjs.NetCDFReader(buf);
+// convenience to build YYYY_MM from index (0-based)
+function monthLabelFromIndex(i){
+  const y = START_YEAR + Math.floor(i/12);
+  const m = 1 + (i % 12);
+  return `${y}_${String(m).padStart(2,"0")}`;
 }
 
-// ------------------------------------------------------------
-// Find file by year
-// ------------------------------------------------------------
-function findFile(year) {
-  return FILES.find(f => year >= f.start && year <= f.end);
+// -----------------------------
+// UI + map init
+// -----------------------------
+const map = L.map("map", {center:[-2.0,118], zoom:5});
+
+// Satellite basemap (ESRI)
+const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+  maxZoom: 18, attribution: "ESRI World Imagery"
+}).addTo(map);
+
+// Optional OSM base for toggle later
+const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19, attribution: "OSM"
+});
+
+let geoLayer = null;    // current GeoRasterLayer
+let currentFilename = "";
+
+// populate year & month dropdowns
+const yearSelect = document.getElementById("yearSelect");
+const monthSelect = document.getElementById("monthSelect");
+const varSelect = document.getElementById("variableSelect");
+const loadBtn = document.getElementById("loadBtn");
+const opacityRange = document.getElementById("opacityRange");
+
+// years: 1950 to 2025
+for(let y=START_YEAR; y<= 2025; y++){
+  const o = document.createElement("option"); o.value = y; o.text = y; yearSelect.appendChild(o);
+}
+// months 01..12
+for(let m=1; m<=12; m++){
+  const mm = String(m).padStart(2,"0");
+  const o = document.createElement("option"); o.value = mm; o.text = mm; monthSelect.appendChild(o);
 }
 
-// ------------------------------------------------------------
-// Initialize dropdowns once using part1 file
-// ------------------------------------------------------------
-async function initDropdowns() {
-  const firstFile = FILES[0].url;
-  const nc = await loadNetCDF(firstFile);
+// -----------------------------
+// Helper: build filename and URL
+// -----------------------------
+function buildFilename(variable, year, month){
+  // variable_YYYY_MM.tif
+  return `${variable}_${year}_${String(month).padStart(2,"0")}.tif`;
+}
+function buildURL(filename){
+  return COG_BASE_URL + filename;
+}
 
-  // Variables
-  varSel.innerHTML = "";
-  nc.variables.forEach(v => {
-    if (["suitability_index", "suitability_class"].includes(v.name)) {
-      const opt = document.createElement("option");
-      opt.value = v.name;
-      opt.textContent = v.name;
-      varSel.appendChild(opt);
+// -----------------------------
+// Helper: test HEAD & range support
+// -----------------------------
+async function testURL(url){
+  try{
+    const head = await fetch(url, { method:"HEAD" });
+    if(head.ok){
+      // check Accept-Ranges header (may not be strictly required now)
+      const ar = head.headers.get("accept-ranges");
+      return { ok:true, acceptRanges: ar !== null && ar !== "none" };
     }
-  });
-
-  // Years 1950–2025
-  yearSel.innerHTML = "";
-  for (let y = 1950; y <= 2025; y++) {
-    const opt = document.createElement("option");
-    opt.value = y;
-    opt.textContent = y;
-    yearSel.appendChild(opt);
-  }
-
-  // Months
-  monthSel.innerHTML = "";
-  for (let m = 1; m <= 12; m++) {
-    const opt = document.createElement("option");
-    opt.value = m;
-    opt.textContent = m.toString().padStart(2, "0");
-    monthSel.appendChild(opt);
+    // fallback small range
+    const r = await fetch(url, { method:"GET", headers: { Range: "bytes=0-1" }});
+    return { ok: r.ok, acceptRanges: r.status === 206 };
+  } catch(err){
+    console.warn("testURL error:", err);
+    return { ok:false, acceptRanges:false, err };
   }
 }
 
-// ------------------------------------------------------------
-// Render map layer
-// ------------------------------------------------------------
-async function updateMap() {
-  const variable = varSel.value;
-  const year = parseInt(yearSel.value);
-  const month = parseInt(monthSel.value);
 
-  const file = findFile(year);
-  if (!file) {
-    console.error("No file for year:", year);
+// -----------------------------
+// Load chosen COG and display
+// -----------------------------
+async function loadAndDisplay(variable, year, month){
+  const filename = buildFilename(variable, year, month);
+  const url = buildURL(filename);
+  currentFilename = filename;
+
+  console.log("Loading COG:", url);
+
+  const t = await testURL(url);
+  if(!t.ok){
+    alert("COG not accessible at: " + url + "\nCheck COG_BASE_URL and filename.");
     return;
   }
+  // For trial we fetch full file (works for small files). For production with large COGs
+  // we will later switch to streaming (geotiff.fromUrl with range requests).
+  try{
+    // show small loading indicator
+    loadBtn.innerText = "Loading…";
+    loadBtn.disabled = true;
 
-  console.log("Using file:", file.url);
+    const resp = await fetch(url);
+    if(!resp.ok) throw new Error("Download failed: " + resp.status);
 
-  const nc = await loadNetCDF(file.url);
+    const arrayBuffer = await resp.arrayBuffer();
+    const georaster = await parseGeoraster(arrayBuffer);
 
-  // read dimensions
-  const latVar = nc.variables.find(v => v.name === "latitude");
-  const lonVar = nc.variables.find(v => v.name === "longitude");
-  const timeVar = nc.variables.find(v => v.name === "valid_time");
-  const dataVar = nc.variables.find(v => v.name === variable);
+    // remove previous
+    if(geoLayer){ map.removeLayer(geoLayer); geoLayer = null; }
 
-  const lats = nc.getDataVariable(latVar);
-  const lons = nc.getDataVariable(lonVar);
-  const times = nc.getDataVariable(timeVar);
+    geoLayer = new GeoRasterLayer({
+      georaster,
+      opacity: parseFloat(opacityRange.value),
+      resolution: 256,
+      // color function — simple linear ramp (customize for your variable)
+      pixelValuesToColorFn: values => {
+        const v = values[0];
+        if (v === null || v === undefined || isNaN(v)) return null; // transparent
+        // Example: map value range to colors (tweak for your data)
+        // If your suitability is categorical, you should make a categorical palette.
+        const min = georaster.mins ? georaster.mins[0] : 0;
+        const max = georaster.maxs ? georaster.maxs[0] : 1;
+        const t = (v - min) / (max - min);
+        const c = Math.max(0, Math.min(1, t));
+        // simple blue→yellow→red ramp
+        const r = Math.floor(255 * c);
+        const g = Math.floor(255 * (1 - Math.abs(c - 0.5) * 2));
+        const b = Math.floor(255 * (1 - c));
+        return `rgb(${r},${g},${b})`;
+      }
+    });
 
-  // Select correct time index
-  const targetStr = `${year}-${String(month).padStart(2, "0")}`;
-  const timeIndex = times.findIndex(t => {
-    const d = new Date(t);
-    return d.getUTCFullYear() === year && (d.getUTCMonth() + 1) === month;
-  });
+    geoLayer.addTo(map);
+    // zoom to raster bounds
+    try{ map.fitBounds(geoLayer.getBounds()); } catch(e){ console.warn(e); }
 
-  if (timeIndex < 0) {
-    console.warn("Time not found:", targetStr);
-    return;
+    // attach click to show pixel values using GeoRasterLayer API
+    map.off('click', onMapClick);
+    map.on('click', onMapClick);
+
+  } catch(err){
+    console.error("Failed to load or parse COG:", err);
+    alert("Failed to load COG. See console.");
+  } finally {
+    loadBtn.innerText = "Load / Refresh";
+    loadBtn.disabled = false;
   }
-
-  const values = nc.getDataVariable(dataVar);
-  const width = lons.length;
-  const height = lats.length;
-
-  // Extract slice
-  const slice = values.slice(timeIndex * width * height,
-                             (timeIndex + 1) * width * height);
-
-  // Create Canvas manually
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  const img = ctx.createImageData(width, height);
-
-  for (let i = 0; i < slice.length; i++) {
-    const v = slice[i];
-    const col = Math.floor(255 * (v / 1.0)); // scale 0–1
-    img.data[i*4+0] = col;
-    img.data[i*4+1] = 0;
-    img.data[i*4+2] = 255 - col;
-    img.data[i*4+3] = 255;
-  }
-
-  ctx.putImageData(img, 0, 0);
-
-  if (rasterLayer) map.removeLayer(rasterLayer);
-
-  rasterLayer = L.imageOverlay(
-    canvas.toDataURL(),
-    [
-      [lats[0],   lons[0]],
-      [lats[lats.length - 1], lons[lons.length - 1]]
-    ],
-    { opacity: 0.7 }
-  );
-
-  rasterLayer.addTo(map);
 }
 
-// ------------------------------------------------------------
-// Attach listeners
-// ------------------------------------------------------------
-varSel.onchange = updateMap;
-yearSel.onchange = updateMap;
-monthSel.onchange = updateMap;
+// -----------------------------
+// Click handler: read pixel value
+// -----------------------------
+async function onMapClick(evt){
+  if(!geoLayer || !geoLayer.getValueAtLatLng) {
+    L.popup().setLatLng(evt.latlng).setContent("No raster loaded").openOn(map);
+    return;
+  }
+  try{
+    const val = await geoLayer.getValueAtLatLng(evt.latlng.lat, evt.latlng.lng);
+    const txt = Array.isArray(val) ? val.map((v,i)=>`B${i+1}: ${v}`).join("<br>") : `Value: ${val}`;
+    L.popup().setLatLng(evt.latlng).setContent(txt + `<br><small>${currentFilename}</small>`).openOn(map);
+  } catch(err){
+    console.warn("Pixel read failed:", err);
+  }
+}
 
-// ------------------------------------------------------------
-// Start
-// ------------------------------------------------------------
-initDropdowns().then(updateMap);
+// -----------------------------
+// Bind UI
+// -----------------------------
+loadBtn.addEventListener('click', ()=> {
+  const variable = varSelect.value;
+  const year = yearSelect.value;
+  const month = monthSelect.value;
+  loadAndDisplay(variable, year, month);
+});
+
+opacityRange.addEventListener('input', ()=> {
+  const v = parseFloat(opacityRange.value);
+  if(geoLayer && typeof geoLayer.setOpacity === 'function') geoLayer.setOpacity(v);
+});
+
+// load default initial
+(function init(){
+  // default: suitability_index, 1950-01
+  yearSelect.value = "1950";
+  monthSelect.value = "01";
+  varSelect.value = "suitability_index";
+  loadBtn.click();
+})();
