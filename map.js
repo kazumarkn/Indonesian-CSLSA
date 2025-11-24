@@ -4,7 +4,7 @@
 const COG_BASE_URL =
   "https://huggingface.co/datasets/rkazuma/CSLSA/resolve/main/cogs/"; 
 
-const variables = ["suitability_class"];
+const variables = ["suitability_index"];
 const years = Array.from({ length: 71 }, (_, i) => 1950 + i);
 
 // -----------------------------------------------------------
