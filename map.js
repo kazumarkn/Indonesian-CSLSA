@@ -1,219 +1,198 @@
-// -----------------------------
-// CONFIG
-// -----------------------------
+// ------------------------------------------------------------
+// Load netcdfjs
+// ------------------------------------------------------------
+import * as netcdfjs from "https://cdn.jsdelivr.net/npm/netcdfjs@1.3.1/dist/netcdfjs.esm.js";
+
+// ------------------------------------------------------------
+// NetCDF file list (your 4 files)
+// ------------------------------------------------------------
 const FILES = [
-    { start: 1950, end: 1968, url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part1.nc" },
-    { start: 1969, end: 1987, url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part2.nc" },
-    { start: 1988, end: 2006, url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part3.nc" },
-    { start: 2007, end: 2025, url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part4.nc" }
+  {
+    name: "1950–1968",
+    url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part1.nc",
+    start: 1950,
+    end: 1968
+  },
+  {
+    name: "1969–1987",
+    url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part2.nc",
+    start: 1969,
+    end: 1987
+  },
+  {
+    name: "1988–2006",
+    url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part3.nc",
+    start: 1988,
+    end: 2006
+  },
+  {
+    name: "2007–2025",
+    url: "https://kazumarkn.github.io/Indonesian-CSLSA/arabica_suitability_part4.nc",
+    start: 2007,
+    end: 2025
+  }
 ];
 
-// Global state
-let map, rasterLayer;
-let ncCache = {}; // cache loaded files
-let times = [];
-let lat = [];
-let lon = [];
-let variables = [];
+// ------------------------------------------------------------
+// Leaflet map
+// ------------------------------------------------------------
+const map = L.map("map").setView([-2, 118], 5);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
+let rasterLayer = null;
 
-// -----------------------------
-// INIT MAP
-// -----------------------------
-function initMap() {
-    map = L.map("map").setView([0, 118], 5);
+// ------------------------------------------------------------
+// UI elements
+// ------------------------------------------------------------
+const varSel = document.getElementById("variableSelect");
+const yearSel = document.getElementById("yearSelect");
+const monthSel = document.getElementById("monthSelect");
 
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 10
-    }).addTo(map);
-}
-
-
-// -----------------------------
-// LOAD NETCDF FILE
-// -----------------------------
+// ------------------------------------------------------------
+// Load and parse NetCDF file
+// ------------------------------------------------------------
 async function loadNetCDF(url) {
-    console.log("Loading NC:", url);
+  console.log("Loading NC:", url);
 
-    if (ncCache[url]) {
-        console.log("Using cached:", url);
-        return ncCache[url];
-    }
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch " + url);
 
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("Fetch failed: " + response.status);
-
-    const arrayBuffer = await response.arrayBuffer();
-    const reader = new netcdfjs.NetCDFReader(arrayBuffer);
-
-    ncCache[url] = reader;
-    return reader;
+  const buf = await res.arrayBuffer();
+  return new netcdfjs.NetCDFReader(buf);
 }
 
-
-// -----------------------------
-// FIND FILE FOR YEAR
-// -----------------------------
-function chooseFile(year) {
-    return FILES.find(f => year >= f.start && year <= f.end).url;
+// ------------------------------------------------------------
+// Find file by year
+// ------------------------------------------------------------
+function findFile(year) {
+  return FILES.find(f => year >= f.start && year <= f.end);
 }
 
-
-// -----------------------------
-// FILL DROPDOWNS
-// -----------------------------
+// ------------------------------------------------------------
+// Initialize dropdowns once using part1 file
+// ------------------------------------------------------------
 async function initDropdowns() {
-    // Load first file only to read info
-    const reader = await loadNetCDF(FILES[0].url);
+  const firstFile = FILES[0].url;
+  const nc = await loadNetCDF(firstFile);
 
-    variables = reader.variables
-        .map(v => v.name)
-        .filter(v => !["latitude", "longitude", "valid_time"].includes(v));
-
-    lat = reader.getDataVariable("latitude");
-    lon = reader.getDataVariable("longitude");
-
-    const t_raw = reader.getDataVariable("valid_time");
-
-    // Convert NetCDF time → JS datetime
-    times = t_raw.map(t => new Date(t));
-
-    // Fill variable dropdown
-    const varSel = document.getElementById("variableSelect");
-    variables.forEach(v => {
-        const opt = document.createElement("option");
-        opt.value = v;
-        opt.textContent = v;
-        varSel.appendChild(opt);
-    });
-
-    // Generate year & month list 1950–2025
-    const years = [];
-    for (let y = 1950; y <= 2025; y++) years.push(y);
-
-    const yearSel = document.getElementById("yearSelect");
-    years.forEach(y => {
-        const opt = document.createElement("option");
-        opt.value = y;
-        opt.textContent = y;
-        yearSel.appendChild(opt);
-    });
-
-    const monthSel = document.getElementById("monthSelect");
-    for (let m = 1; m <= 12; m++) {
-        const opt = document.createElement("option");
-        opt.value = m;
-        opt.textContent = m.toString().padStart(2, "0");
-        monthSel.appendChild(opt);
+  // Variables
+  varSel.innerHTML = "";
+  nc.variables.forEach(v => {
+    if (["suitability_index", "suitability_class"].includes(v.name)) {
+      const opt = document.createElement("option");
+      opt.value = v.name;
+      opt.textContent = v.name;
+      varSel.appendChild(opt);
     }
+  });
+
+  // Years 1950–2025
+  yearSel.innerHTML = "";
+  for (let y = 1950; y <= 2025; y++) {
+    const opt = document.createElement("option");
+    opt.value = y;
+    opt.textContent = y;
+    yearSel.appendChild(opt);
+  }
+
+  // Months
+  monthSel.innerHTML = "";
+  for (let m = 1; m <= 12; m++) {
+    const opt = document.createElement("option");
+    opt.value = m;
+    opt.textContent = m.toString().padStart(2, "0");
+    monthSel.appendChild(opt);
+  }
 }
 
-
-// -----------------------------
-// UPDATE MAP
-// -----------------------------
+// ------------------------------------------------------------
+// Render map layer
+// ------------------------------------------------------------
 async function updateMap() {
-    const variable = document.getElementById("variableSelect").value;
-    const year = parseInt(document.getElementById("yearSelect").value);
-    const month = parseInt(document.getElementById("monthSelect").value);
+  const variable = varSel.value;
+  const year = parseInt(yearSel.value);
+  const month = parseInt(monthSel.value);
 
-    const url = chooseFile(year);
+  const file = findFile(year);
+  if (!file) {
+    console.error("No file for year:", year);
+    return;
+  }
 
-    console.log("Selected →", variable, year, month);
-    console.log("File →", url);
+  console.log("Using file:", file.url);
 
-    try {
-        const reader = await loadNetCDF(url);
+  const nc = await loadNetCDF(file.url);
 
-        const t_raw = reader.getDataVariable("valid_time");
-        const t_dates = t_raw.map(t => new Date(t));
+  // read dimensions
+  const latVar = nc.variables.find(v => v.name === "latitude");
+  const lonVar = nc.variables.find(v => v.name === "longitude");
+  const timeVar = nc.variables.find(v => v.name === "valid_time");
+  const dataVar = nc.variables.find(v => v.name === variable);
 
-        const idx = t_dates.findIndex(d =>
-            d.getUTCFullYear() === year &&
-            d.getUTCMonth() + 1 === month
-        );
+  const lats = nc.getDataVariable(latVar);
+  const lons = nc.getDataVariable(lonVar);
+  const times = nc.getDataVariable(timeVar);
 
-        if (idx === -1) {
-            console.warn("No matching timestep!");
-            return;
-        }
+  // Select correct time index
+  const targetStr = `${year}-${String(month).padStart(2, "0")}`;
+  const timeIndex = times.findIndex(t => {
+    const d = new Date(t);
+    return d.getUTCFullYear() === year && (d.getUTCMonth() + 1) === month;
+  });
 
-        const data3d = reader.getDataVariable(variable);
-        const slice = data3d.slice(idx * lat.length * lon.length,
-                                  (idx + 1) * lat.length * lon.length);
+  if (timeIndex < 0) {
+    console.warn("Time not found:", targetStr);
+    return;
+  }
 
-        // Convert 1D into 2D
-        let grid = [];
-        for (let i = 0; i < lat.length; i++) {
-            grid.push(slice.slice(i * lon.length, (i + 1) * lon.length));
-        }
+  const values = nc.getDataVariable(dataVar);
+  const width = lons.length;
+  const height = lats.length;
 
-        showRaster(grid);
-    }
-    catch (err) {
-        console.error("Error updating map:", err);
-    }
+  // Extract slice
+  const slice = values.slice(timeIndex * width * height,
+                             (timeIndex + 1) * width * height);
+
+  // Create Canvas manually
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(width, height);
+
+  for (let i = 0; i < slice.length; i++) {
+    const v = slice[i];
+    const col = Math.floor(255 * (v / 1.0)); // scale 0–1
+    img.data[i*4+0] = col;
+    img.data[i*4+1] = 0;
+    img.data[i*4+2] = 255 - col;
+    img.data[i*4+3] = 255;
+  }
+
+  ctx.putImageData(img, 0, 0);
+
+  if (rasterLayer) map.removeLayer(rasterLayer);
+
+  rasterLayer = L.imageOverlay(
+    canvas.toDataURL(),
+    [
+      [lats[0],   lons[0]],
+      [lats[lats.length - 1], lons[lons.length - 1]]
+    ],
+    { opacity: 0.7 }
+  );
+
+  rasterLayer.addTo(map);
 }
 
+// ------------------------------------------------------------
+// Attach listeners
+// ------------------------------------------------------------
+varSel.onchange = updateMap;
+yearSel.onchange = updateMap;
+monthSel.onchange = updateMap;
 
-// -----------------------------
-// DRAW RASTER USING Leaflet canvas
-// -----------------------------
-function showRaster(grid) {
-
-    if (rasterLayer) map.removeLayer(rasterLayer);
-
-    const latMin = Math.min(...lat);
-    const latMax = Math.max(...lat);
-    const lonMin = Math.min(...lon);
-    const lonMax = Math.max(...lon);
-
-    const bounds = [[latMin, lonMin], [latMax, lonMax]];
-
-    rasterLayer = L.imageOverlay.canvas(bounds, {
-        opacity: 0.8
-    });
-
-    rasterLayer.drawCanvas = (canvas, map) => {
-        let ctx = canvas.getContext("2d");
-        let w = canvas.width;
-        let h = canvas.height;
-        let imgData = ctx.createImageData(w, h);
-        let d = imgData.data;
-
-        for (let y = 0; y < h; y++) {
-            let iy = Math.floor((y / h) * grid.length);
-            for (let x = 0; x < w; x++) {
-                let ix = Math.floor((x / w) * grid[0].length);
-                let v = grid[iy][ix];
-
-                let c = v ? 255 - (v % 255) : 0;
-
-                const idx = (y * w + x) * 4;
-                d[idx] = c;
-                d[idx + 1] = 0;
-                d[idx + 2] = 255 - c;
-                d[idx + 3] = 200;
-            }
-        }
-
-        ctx.putImageData(imgData, 0, 0);
-    };
-
-    rasterLayer.addTo(map);
-    map.fitBounds(bounds);
-}
-
-
-// -----------------------------
-// MAIN
-// -----------------------------
-initMap();
-initDropdowns().then(() => {
-    document.getElementById("variableSelect").onchange = updateMap;
-    document.getElementById("yearSelect").onchange = updateMap;
-    document.getElementById("monthSelect").onchange = updateMap;
-
-    // First draw
-    updateMap();
-});
+// ------------------------------------------------------------
+// Start
+// ------------------------------------------------------------
+initDropdowns().then(updateMap);
