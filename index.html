@@ -1,53 +1,61 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>Indonesia CSLSA Viewer</title>
+  <meta charset="utf-8" />
+  <title>Indonesia Coffee Suitability (COG viewer)</title>
 
-    <link rel="stylesheet"
-          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
-    <style>
-        body { margin: 0; padding: 0; }
-        #controls {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            z-index: 1000;
-            background: #fff;
-            padding: 10px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            font-family: Arial;
-        }
-        #map {
-            width: 100vw;
-            height: 100vh;
-        }
-        label { display: block; margin-top: 6px; }
-        select { width: 160px; padding: 4px; }
-    </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    body,html { margin:0; padding:0; height:100%; }
+    #map { position:absolute; top:0; left:0; right:0; bottom:0; }
+    #panel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10000;
+      background: rgba(255,255,255,0.95);
+      padding: 10px;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      font-family: Arial, sans-serif;
+      min-width: 220px;
+    }
+    #panel label { display:block; font-size:12px; margin-top:6px; color:#333; }
+    #panel select, #panel input[type="range"] { width:100%; margin-top:6px; }
+    #credits { position: absolute; right: 10px; bottom: 10px; z-index:9999; background:rgba(255,255,255,0.8); padding:6px; border-radius:4px; font-size:12px; }
+  </style>
 </head>
-
 <body>
-
-<div id="controls">
+  <div id="panel">
     <label>Variable</label>
-    <select id="variableSelect"></select>
+    <select id="variableSelect">
+      <option value="suitability_index">suitability_index</option>
+      <option value="suitability_class">suitability_class</option>
+      <!-- add more if you create COGs for other variables -->
+    </select>
 
     <label>Year</label>
     <select id="yearSelect"></select>
 
     <label>Month</label>
     <select id="monthSelect"></select>
-</div>
 
-<div id="map"></div>
+    <label style="margin-top:8px">Opacity</label>
+    <input id="opacityRange" type="range" min="0" max="1" step="0.01" value="0.85">
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <button id="loadBtn" style="margin-top:8px; width:100%;">Load / Refresh</button>
+  </div>
 
-<!-- Load netcdfjs ESM module -->
-<script type="module" src="map.js"></script>
+  <div id="map"></div>
+  <div id="credits">Basemap: ESRI Satellite</div>
 
+  <!-- libs -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/geotiff/dist/geotiff.browser.min.js"></script>
+  <script src="https://unpkg.com/georaster/dist/georaster.browser.min.js"></script>
+  <script src="https://unpkg.com/georaster-layer-for-leaflet"></script>
+
+  <!-- your script -->
+  <script src="map.js"></script>
 </body>
 </html>
